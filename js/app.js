@@ -15,71 +15,104 @@ const DEFENSE_MOVES = [
 
 const PUNCH_POOLS = {
   beginner: [
-    "1-2", "1-1", "2-3", "1-3", "3-2",
+    "1-2", "1-1", "2-3", "1-3", "3-2", "1-5", "3-6",
     "1-2-3", "1-1-2", "2-3-2", "1-3-2", "1-2-1"
   ],
   intermediate: [
     "1-2-3", "1-1-2", "2-3-2", "1-2-3-2", "1-3-2",
     "1-2-6", "3-2-3", "1-4-3", "1-2-3-6", "2-3-6",
-    "1-1-2-3", "3-2-3-2"
+    "1-1-2-3", "3-2-3-2", "1-2-1-2", "6-3-2", "1-6-3-2"
   ],
   advanced: [
     "1-2-3-2", "1-1-2-3-2", "1-2-3-6-3", "2-3-2-3-2",
     "1-2-6-3-2", "1-3-2-3-2", "1-2-3-2-3-2", "1-4-3-2",
-    "1-2-5-2", "3-2-3-6-3", "1-1-2-3-6-3", "2-3-2-6-3"
+    "1-2-5-2", "3-2-3-6-3", "1-1-2-3-6-3", "2-3-2-6-3",
+    "1-2-1-2-3", "6-5-2-1"
   ]
 };
 
-// Advanced-only: defense/footwork chained directly with punches into one call.
+// Advanced-only: defense/footwork chained directly with punches into one
+// call. Each combo is a list of discrete phrases (spoken as separate
+// utterances back-to-back) rather than one run-on sentence.
 const CHAINED_COMBOS = [
-  "Slip left, 2-3, pivot right, 1-1-2",
-  "Roll, 3-2, step in, 1-2-3",
-  "Duck, 1-2, pull back, 2-3-2",
-  "Parry, 2, pivot left, 1-2-3-2",
-  "Slip right, 1-2, circle left, 2-3",
-  "Block, step out, 1-1-2-3",
-  "Duck, 3-2, roll, 2-3-2",
-  "Slip left, slip right, 1-2-3",
-  "Pivot left, 1-2, step in, 3-2-3",
-  "Cover up, step out, 2-3-2-3",
-  "Pull straight back, 1-2, circle right, 1-1-2",
-  "Parry, 1-2-3, pivot right, 2-3"
+  ["Slip left", "2-3", "pivot right", "1-1-2"],
+  ["Roll", "3-2", "step in", "1-2-3"],
+  ["Duck", "1-2", "pull back", "2-3-2"],
+  ["Parry", "2", "pivot left", "1-2-3-2"],
+  ["Slip right", "1-2", "circle left", "2-3"],
+  ["Block", "step out", "1-1-2-3"],
+  ["Duck", "3-2", "roll", "2-3-2"],
+  ["Slip left", "slip right", "1-2-3"],
+  ["Pivot left", "1-2", "step in", "3-2-3"],
+  ["Cover up", "step out", "2-3-2-3"],
+  ["Pull straight back", "1-2", "circle right", "1-1-2"],
+  ["Parry", "1-2-3", "pivot right", "2-3"]
 ];
 
-// Pacing (seconds between calls) during Timed Rounds, by difficulty.
+// Pacing (seconds of rest AFTER a call finishes speaking, before the next
+// one starts) during Timed Rounds, by difficulty.
 const PACE = {
-  beginner: { min: 3.5, max: 5.0 },
-  intermediate: { min: 2.5, max: 3.5 },
-  advanced: { min: 1.5, max: 2.5 }
+  beginner: { min: 2.5, max: 3.5 },
+  intermediate: { min: 1.5, max: 2.5 },
+  advanced: { min: 0.8, max: 1.6 }
 };
 
 // Chance of a standalone defense call vs a punch combo (defense toggle on).
 const DEFENSE_FREQ = { beginner: 0.15, intermediate: 0.3, advanced: 0.2 };
 // Advanced-only: chance of using a fully chained defense+punch combo.
 const CHAIN_FREQ = 0.4;
+// Never let more than this many standalone defense/movement calls land
+// back-to-back — punch combos (and chained combos, which include punches)
+// don't count toward this streak.
+const MAX_CONSECUTIVE_DEFENSE = 2;
+
+const PUNCH_SEGMENT_RE = /^[1-6](-[1-6])*$/;
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-function generateCall(difficulty, includeDefense) {
+function makeSegment(text) {
+  return { text, isPunch: PUNCH_SEGMENT_RE.test(text.trim()) };
+}
+
+function punchCall(combo) {
+  return { display: combo, segments: [makeSegment(combo)], kind: "punch" };
+}
+
+function defenseCall(move) {
+  return { display: move, segments: [makeSegment(move)], kind: "defense" };
+}
+
+function chainedCall(parts) {
+  return {
+    display: parts.join(", "),
+    segments: parts.map(makeSegment),
+    kind: "mixed"
+  };
+}
+
+// `recentKinds` is the kind ("defense"/"punch"/"mixed") of the last few
+// calls, most recent last — used to cap consecutive standalone defense calls.
+function generateCall(difficulty, includeDefense, recentKinds) {
   const punchPool = PUNCH_POOLS[difficulty] || PUNCH_POOLS.advanced;
 
-  if (!includeDefense) return pick(punchPool);
+  if (!includeDefense) return punchCall(pick(punchPool));
+
+  const blockDefense =
+    recentKinds.length >= MAX_CONSECUTIVE_DEFENSE &&
+    recentKinds.slice(-MAX_CONSECUTIVE_DEFENSE).every((k) => k === "defense");
 
   if (difficulty === "advanced") {
     const r = Math.random();
-    if (r < CHAIN_FREQ) return pick(CHAINED_COMBOS);
-    if (r < CHAIN_FREQ + DEFENSE_FREQ.advanced) return pick(DEFENSE_MOVES);
-    return pick(punchPool);
+    if (r < CHAIN_FREQ) return chainedCall(pick(CHAINED_COMBOS));
+    if (!blockDefense && r < CHAIN_FREQ + DEFENSE_FREQ.advanced) {
+      return defenseCall(pick(DEFENSE_MOVES));
+    }
+    return punchCall(pick(punchPool));
   }
 
   const freq = DEFENSE_FREQ[difficulty] ?? 0.2;
-  if (Math.random() < freq) return pick(DEFENSE_MOVES);
-  return pick(punchPool);
-}
-
-function speakableText(call) {
-  // "1-2-3" -> "1, 2, 3" so the TTS engine pauses naturally between numbers.
-  return call.replace(/-/g, ", ");
+  if (!blockDefense && Math.random() < freq) return defenseCall(pick(DEFENSE_MOVES));
+  return punchCall(pick(punchPool));
 }
 
 /* =========================================================================
@@ -127,6 +160,35 @@ const synth = window.speechSynthesis;
 let voices = [];
 let speechPrimed = false;
 
+// Browser TTS quality varies wildly by voice. Score voices so we can
+// auto-pick a natural-sounding one instead of leaving it to whatever the
+// browser's arbitrary default happens to be (often a flat, robotic voice).
+const GOOD_VOICE_NAME_RE = /neural|enhanced|premium|natural|siri/i;
+const GOOD_VOICE_NAMES_RE = /samantha|alex|daniel|karen|moira|tessa|serena|ava|nicky|aaron|evan|nathan|zoe|allison|susan|tom/i;
+const GOOD_ONLINE_RE = /google (us|uk) english|microsoft .*online/i;
+const NOVELTY_VOICE_RE = /novelty|zarvox|trinoids|bells|boing|bubbles|cellos|deranged|hysterical|pipe organ|organ|whisper|bahh|albert|bad news|good news|jester|wobble|superstar|junior|ralph|kathy|fred/i;
+
+function scoreVoice(v) {
+  let score = 0;
+  if (GOOD_VOICE_NAME_RE.test(v.name)) score += 100;
+  if (GOOD_VOICE_NAMES_RE.test(v.name)) score += 40;
+  if (GOOD_ONLINE_RE.test(v.name)) score += 40;
+  if (NOVELTY_VOICE_RE.test(v.name)) score -= 200;
+  if (v.lang && v.lang.toLowerCase().startsWith("en")) score += 20;
+  if (v.default) score += 5;
+  return score;
+}
+
+function autoVoiceURI() {
+  if (!voices.length) return "";
+  return voices.reduce((best, v) => (scoreVoice(v) > scoreVoice(best) ? v : best)).voiceURI;
+}
+
+function resolveVoice() {
+  const uri = settings.voiceURI || autoVoiceURI();
+  return voices.find((v) => v.voiceURI === uri) || null;
+}
+
 function refreshVoices() {
   voices = synth ? synth.getVoices() : [];
   populateVoiceSelect();
@@ -139,7 +201,7 @@ function populateVoiceSelect() {
 
   const defaultOpt = document.createElement("option");
   defaultOpt.value = "";
-  defaultOpt.textContent = "Default";
+  defaultOpt.textContent = "Auto (recommended)";
   sel.appendChild(defaultOpt);
 
   voices.forEach((v) => {
@@ -162,17 +224,43 @@ function primeSpeech() {
   synth.speak(u);
 }
 
+// Punch numbers get a speed boost relative to defense/movement phrases so
+// combos snap out quickly while named moves stay clearly enunciated.
+const PUNCH_RATE_MULTIPLIER = 1.25;
+
+function buildUtterance(text, isPunch) {
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = isPunch ? Math.min(2.4, settings.rate * PUNCH_RATE_MULTIPLIER) : settings.rate;
+  u.volume = settings.volume;
+  const v = resolveVoice();
+  if (v) u.voice = v;
+  return u;
+}
+
+// Speaks a plain, single-phrase line (rest/start/complete announcements).
 function speak(text) {
   if (!synth) return;
-  synth.cancel(); // don't let calls queue up and fall behind the pace
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate = settings.rate;
-  u.volume = settings.volume;
-  if (settings.voiceURI) {
-    const v = voices.find((v) => v.voiceURI === settings.voiceURI);
-    if (v) u.voice = v;
+  synth.cancel();
+  synth.speak(buildUtterance(text, false));
+}
+
+// Speaks a call's segments back-to-back as separate utterances, so each one
+// fully completes (no mid-word cutoffs) before the next starts. Invokes
+// `onDone` once the whole call has finished.
+function speakCall(call, onDone) {
+  if (!synth) { onDone(); return; }
+  synth.cancel();
+  let i = 0;
+  function speakNext() {
+    if (i >= call.segments.length) { onDone(); return; }
+    const seg = call.segments[i++];
+    const text = seg.isPunch ? seg.text.replace(/-/g, ", ") : seg.text;
+    const u = buildUtterance(text, seg.isPunch);
+    u.onend = () => setTimeout(speakNext, 120);
+    u.onerror = () => setTimeout(speakNext, 120);
+    synth.speak(u);
   }
-  synth.speak(u);
+  speakNext();
 }
 
 if (synth) {
@@ -299,6 +387,8 @@ const workout = (() => {
   let callTimer = null;
   let freestyleElapsed = 0;
   let freestyleStartedAt = 0;
+  let recentKinds = []; // last few call kinds, for the consecutive-defense cap
+  let callToken = 0; // bumped on pause/stop so stale callbacks are ignored
 
   function isActive() {
     return state === "work" || state === "rest" || state === "freestyle";
@@ -314,21 +404,30 @@ const workout = (() => {
     els.phaseLabel.className = "phase-label" + (cls ? " " + cls : "");
   }
 
-  function scheduleNextCall() {
-    if (callTimer) clearTimeout(callTimer);
-    let gapSec;
-    if (settings.mode === "freestyle") {
-      gapSec = settings.freestyleInterval;
-    } else {
-      const pace = PACE[settings.difficulty] || PACE.advanced;
-      gapSec = pace.min + Math.random() * (pace.max - pace.min);
-    }
-    callTimer = setTimeout(() => {
-      const call = generateCall(settings.difficulty, settings.includeDefense);
-      addCallToLog(call);
-      speak(speakableText(call));
-      scheduleNextCall();
-    }, gapSec * 1000);
+  // Speaks a call immediately, then — only once it has FULLY finished
+  // speaking — waits a difficulty/mode-appropriate gap before the next one.
+  // This guarantees every combo is heard in full rather than getting cut
+  // off by a fixed timer that didn't account for how long the call takes.
+  function speakNextCall() {
+    if (callTimer) { clearTimeout(callTimer); callTimer = null; }
+    const token = callToken;
+    const call = generateCall(settings.difficulty, settings.includeDefense, recentKinds);
+    recentKinds.push(call.kind);
+    if (recentKinds.length > MAX_CONSECUTIVE_DEFENSE) recentKinds.shift();
+    addCallToLog(call.display);
+    speakCall(call, () => {
+      if (token !== callToken) return; // paused/stopped while speaking
+      let gapSec;
+      if (settings.mode === "freestyle") {
+        gapSec = settings.freestyleInterval;
+      } else {
+        const pace = PACE[settings.difficulty] || PACE.advanced;
+        gapSec = pace.min + Math.random() * (pace.max - pace.min);
+      }
+      callTimer = setTimeout(() => {
+        if (token === callToken) speakNextCall();
+      }, gapSec * 1000);
+    });
   }
 
   function startRoundsMode() {
@@ -344,7 +443,7 @@ const workout = (() => {
     els.roundCounter.textContent = `Round ${currentRound} of ${settings.numRounds}`;
     playBell("start");
     vibrate(100);
-    scheduleNextCall();
+    speakNextCall();
     startTick();
   }
 
@@ -353,6 +452,7 @@ const workout = (() => {
     phaseDuration = settings.restLength;
     phaseEndAt = performance.now() + phaseDuration * 1000;
     setPhaseUI("REST", "rest");
+    callToken++; // invalidate any call still mid-speech from the work phase
     if (callTimer) { clearTimeout(callTimer); callTimer = null; }
     speak("Rest");
     startTick();
@@ -360,6 +460,7 @@ const workout = (() => {
 
   function finishWorkout() {
     state = "done";
+    callToken++;
     clearTimers();
     setPhaseUI("DONE", "done");
     els.timerDisplay.textContent = "00:00";
@@ -377,8 +478,7 @@ const workout = (() => {
     freestyleElapsed = 0;
     setPhaseUI("FREESTYLE", "work");
     els.roundCounter.textContent = "Freestyle";
-    speak("Let's work");
-    scheduleNextCall();
+    speakNextCall();
     startTick();
   }
 
@@ -434,6 +534,7 @@ const workout = (() => {
     getAudioCtx();
     acquireWakeLock();
     els.callsList.innerHTML = '<li class="call-placeholder">Calls will appear here…</li>';
+    recentKinds = [];
 
     if (settings.mode === "rounds") {
       startRoundsMode();
@@ -446,6 +547,7 @@ const workout = (() => {
   function pause() {
     if (!isActive()) return;
     preParseState = state;
+    callToken++;
     clearTimers();
     if (state === "freestyle") {
       freestyleElapsed = (performance.now() - freestyleStartedAt) / 1000;
@@ -471,7 +573,7 @@ const workout = (() => {
       phaseEndAt = performance.now() + pausedRemaining * 1000;
       setPhaseUI(state === "work" ? "WORK" : "REST", state === "work" ? "work" : "rest");
     }
-    scheduleNextCall();
+    if (state === "work" || state === "freestyle") speakNextCall();
     startTick();
     setControlsForState();
   }
@@ -482,10 +584,12 @@ const workout = (() => {
   }
 
   function stop() {
+    callToken++;
     clearTimers();
     if (synth) synth.cancel();
     state = "idle";
     currentRound = 0;
+    recentKinds = [];
     setPhaseUI("READY");
     els.timerDisplay.textContent = formatTime(settings.mode === "rounds" ? settings.roundLength : 0);
     els.roundCounter.textContent = "Ready";
@@ -607,7 +711,7 @@ settingEls.volume.addEventListener("input", () => {
 document.getElementById("btn-test-voice").addEventListener("click", () => {
   primeSpeech();
   commitSettingsFromUI();
-  speak("1, 2, 3. Slip left. Let's work.");
+  speakCall(chainedCall(["1-2-3", "Slip left", "2-3"]), () => {});
 });
 
 /* =========================================================================
