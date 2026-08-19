@@ -13,6 +13,25 @@ const DEFENSE_MOVES = [
   "Circle left", "Circle right"
 ];
 
+// Plain-English how-to for each defense/movement call, shown in Settings.
+const DEFENSE_GLOSSARY = [
+  ["Slip left", "Bend your knees slightly and shift your head and shoulders left, off the centerline, so a straight punch (like a jab) misses."],
+  ["Slip right", "Same idea as Slip left, but shift your head and shoulders to the right instead."],
+  ["Roll", "Bend at the knees and roll your head and shoulders under an incoming hook, staying low as it passes over you."],
+  ["Duck", "Bend your knees and drop your head and upper body straight down to get under a punch, then come back up to stance."],
+  ["Pull back", "Shift your weight onto your back leg and lean your upper body out of range, keeping your hands up, then return to stance."],
+  ["Pull straight back", "Same as Pull back — lean straight back out of punching range without moving your feet, then reset."],
+  ["Parry", "Use an open glove to give an incoming punch (usually the jab) a quick slap or push to redirect it off target."],
+  ["Block", "Keep your forearms and gloves tight against your head and body to absorb punches rather than avoiding them."],
+  ["Cover up", "Bring both gloves up tight against your head with elbows in, protecting your head and body together."],
+  ["Pivot left", "Turn on the ball of your lead foot to rotate your whole body and change the angle you're facing."],
+  ["Pivot right", "Turn on the ball of your rear foot to rotate your body the other way."],
+  ["Step in", "Take one short step forward to close the distance and get back in punching range."],
+  ["Step out", "Take one short step back to create distance and get out of range."],
+  ["Circle left", "Move sideways to your left in small steps, staying on the balls of your feet, to change angle."],
+  ["Circle right", "Same as Circle left, moving to your right instead."]
+];
+
 const PUNCH_POOLS = {
   beginner: [
     "1-2", "1-1", "2-3", "1-3", "3-2", "1-5", "3-6",
@@ -56,6 +75,10 @@ const PACE = {
   intermediate: { min: 1.5, max: 2.5 },
   advanced: { min: 0.8, max: 1.6 }
 };
+
+// Extra rest (seconds), on top of the normal pace gap, after a standalone
+// defense/movement call — it's quick to say but needs real time to do.
+const DEFENSE_CALL_EXTRA_REST = 0.9;
 
 // Chance of a standalone defense call vs a punch combo (defense toggle on).
 const DEFENSE_FREQ = { beginner: 0.15, intermediate: 0.3, advanced: 0.2 };
@@ -163,6 +186,7 @@ let speechPrimed = false;
 // Browser TTS quality varies wildly by voice. Score voices so we can
 // auto-pick a natural-sounding one instead of leaving it to whatever the
 // browser's arbitrary default happens to be (often a flat, robotic voice).
+const PREFERRED_VOICE_RE = /\bdaniel\b/i; // picked as the house instructor voice when available
 const GOOD_VOICE_NAME_RE = /neural|enhanced|premium|natural|siri/i;
 const GOOD_VOICE_NAMES_RE = /samantha|alex|daniel|karen|moira|tessa|serena|ava|nicky|aaron|evan|nathan|zoe|allison|susan|tom/i;
 const GOOD_ONLINE_RE = /google (us|uk) english|microsoft .*online/i;
@@ -170,6 +194,7 @@ const NOVELTY_VOICE_RE = /novelty|zarvox|trinoids|bells|boing|bubbles|cellos|der
 
 function scoreVoice(v) {
   let score = 0;
+  if (PREFERRED_VOICE_RE.test(v.name)) score += 500;
   if (GOOD_VOICE_NAME_RE.test(v.name)) score += 100;
   if (GOOD_VOICE_NAMES_RE.test(v.name)) score += 40;
   if (GOOD_ONLINE_RE.test(v.name)) score += 40;
@@ -244,6 +269,12 @@ function speak(text) {
   synth.speak(buildUtterance(text, false));
 }
 
+// Punches flow straight into each other, but a defense/movement segment
+// (slip, duck, pivot...) needs a real beat afterward to actually perform
+// the move before the next segment or call comes in.
+const PUNCH_SEGMENT_GAP_MS = 150;
+const DEFENSE_SEGMENT_GAP_MS = 600;
+
 // Speaks a call's segments back-to-back as separate utterances, so each one
 // fully completes (no mid-word cutoffs) before the next starts. Invokes
 // `onDone` once the whole call has finished.
@@ -256,8 +287,9 @@ function speakCall(call, onDone) {
     const seg = call.segments[i++];
     const text = seg.isPunch ? seg.text.replace(/-/g, ", ") : seg.text;
     const u = buildUtterance(text, seg.isPunch);
-    u.onend = () => setTimeout(speakNext, 120);
-    u.onerror = () => setTimeout(speakNext, 120);
+    const gap = seg.isPunch ? PUNCH_SEGMENT_GAP_MS : DEFENSE_SEGMENT_GAP_MS;
+    u.onend = () => setTimeout(speakNext, gap);
+    u.onerror = () => setTimeout(speakNext, gap);
     synth.speak(u);
   }
   speakNext();
@@ -297,6 +329,23 @@ function tone(freq, startTime, duration, gainPeak = 0.35) {
   osc.stop(startTime + duration + 0.05);
 }
 
+// A short, sharp square-wave hit — closer to a percussive clacker/knock
+// than the round bell's sine tone, so the two are easy to tell apart.
+function clack(startTime, freq = 1700, gainPeak = 0.32) {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.linearRampToValueAtTime(gainPeak, startTime + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.09);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + 0.1);
+}
+
 function playBell(kind) {
   if (!settings.soundOn) return;
   const ctx = getAudioCtx();
@@ -310,6 +359,9 @@ function playBell(kind) {
     tone(700, now + 1.1, 0.6);
   } else if (kind === "done") {
     [0, 0.35, 0.7, 1.05].forEach((t, i) => tone(900 + i * 120, now + t, 0.4));
+  } else if (kind === "warning") {
+    // Mimics a corner's 10-second clacker: three rapid knocks.
+    [0, 0.16, 0.32].forEach((t) => clack(now + t));
   }
 }
 
@@ -389,6 +441,7 @@ const workout = (() => {
   let freestyleStartedAt = 0;
   let recentKinds = []; // last few call kinds, for the consecutive-defense cap
   let callToken = 0; // bumped on pause/stop so stale callbacks are ignored
+  let tenSecWarned = false; // has this round's 10-seconds-left cue fired yet
 
   function isActive() {
     return state === "work" || state === "rest" || state === "freestyle";
@@ -424,6 +477,9 @@ const workout = (() => {
         const pace = PACE[settings.difficulty] || PACE.advanced;
         gapSec = pace.min + Math.random() * (pace.max - pace.min);
       }
+      // Standalone defense/movement calls are short to say but need real
+      // time to physically perform — give them extra rest either way.
+      if (call.kind === "defense") gapSec += DEFENSE_CALL_EXTRA_REST;
       callTimer = setTimeout(() => {
         if (token === callToken) speakNextCall();
       }, gapSec * 1000);
@@ -439,6 +495,7 @@ const workout = (() => {
     state = "work";
     phaseDuration = settings.roundLength;
     phaseEndAt = performance.now() + phaseDuration * 1000;
+    tenSecWarned = false;
     setPhaseUI("WORK", "work");
     els.roundCounter.textContent = `Round ${currentRound} of ${settings.numRounds}`;
     playBell("start");
@@ -497,6 +554,11 @@ const workout = (() => {
     if (state !== "work" && state !== "rest") return;
     const remaining = (phaseEndAt - performance.now()) / 1000;
     els.timerDisplay.textContent = formatTime(remaining);
+    if (state === "work" && !tenSecWarned && remaining <= 10 && phaseDuration > 12) {
+      tenSecWarned = true;
+      playBell("warning");
+      vibrate(60);
+    }
     if (remaining <= 0) {
       onPhaseComplete();
     }
@@ -720,15 +782,31 @@ document.getElementById("btn-test-voice").addEventListener("click", () => {
 
 const workoutScreen = document.getElementById("workout-screen");
 const settingsScreen = document.getElementById("settings-screen");
+let settingsSnapshot = null; // settings as they were when the screen opened, for Cancel
+
+function closeSettingsScreen() {
+  settingsScreen.classList.remove("active");
+  workoutScreen.classList.add("active");
+}
 
 document.getElementById("settings-toggle").addEventListener("click", () => {
+  settingsSnapshot = { ...settings };
   workoutScreen.classList.remove("active");
   settingsScreen.classList.add("active");
 });
 
 document.getElementById("btn-done").addEventListener("click", () => {
-  settingsScreen.classList.remove("active");
-  workoutScreen.classList.add("active");
+  closeSettingsScreen();
+});
+
+document.getElementById("btn-cancel").addEventListener("click", () => {
+  if (settingsSnapshot) {
+    settings = { ...settingsSnapshot };
+    saveSettings(settings);
+    applySettingsToUI();
+    workout.refreshIdleDisplay();
+  }
+  closeSettingsScreen();
 });
 
 /* =========================================================================
@@ -750,8 +828,16 @@ els.btnStop.addEventListener("click", () => {
    INIT
    ========================================================================= */
 
+function renderDefenseGlossary() {
+  const dl = document.getElementById("defense-glossary");
+  dl.innerHTML = DEFENSE_GLOSSARY.map(
+    ([term, desc]) => `<dt>${term}</dt><dd>${desc}</dd>`
+  ).join("");
+}
+
 applySettingsToUI();
 refreshVoices();
+renderDefenseGlossary();
 workout.refreshIdleDisplay();
 workout.setControlsForState();
 

@@ -210,8 +210,9 @@ body {
 /* ---------- Settings screen ---------- */
 .settings-scroll {
   overflow-y: auto;
-  padding: 16px 20px calc(40px + var(--safe-bottom));
+  padding: 16px 20px 20px;
   flex: 1;
+  min-height: 0;
 }
 
 .settings-heading {
@@ -319,15 +320,50 @@ input.toggle:checked::before { left: 21px; }
 }
 .secondary-btn:active { background: var(--bg); }
 
-.primary-btn {
-  width: 100%;
-  background: var(--accent);
-  color: #fff;
+.settings-footer {
+  flex-shrink: 0;
+  display: flex;
+  gap: 10px;
+  padding: 12px 20px calc(16px + var(--safe-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.footer-btn {
+  flex: 1;
   border: none;
   border-radius: 14px;
   padding: 16px;
   font-size: 1.05rem;
   font-weight: 800;
-  margin-top: 24px;
 }
-.primary-btn:active { background: var(--accent-dim); }
+.footer-btn:active { transform: scale(0.97); }
+
+.footer-btn-cancel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.footer-btn-cancel:active { background: var(--bg-card); }
+
+.footer-btn-done {
+  background: var(--accent);
+  color: #fff;
+}
+.footer-btn-done:active { background: var(--accent-dim); }
+
+.glossary-list {
+  margin: 0;
+}
+.glossary-list dt {
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 12px;
+}
+.glossary-list dt:first-child { margin-top: 0; }
+.glossary-list dd {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
