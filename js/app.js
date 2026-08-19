@@ -782,21 +782,25 @@ document.getElementById("btn-test-voice").addEventListener("click", () => {
 
 const workoutScreen = document.getElementById("workout-screen");
 const settingsScreen = document.getElementById("settings-screen");
+const glossaryScreen = document.getElementById("glossary-screen");
 let settingsSnapshot = null; // settings as they were when the screen opened, for Cancel
 
-function closeSettingsScreen() {
-  settingsScreen.classList.remove("active");
-  workoutScreen.classList.add("active");
+function showScreen(screen) {
+  [workoutScreen, settingsScreen, glossaryScreen].forEach((s) => s.classList.remove("active"));
+  screen.classList.add("active");
 }
 
 document.getElementById("settings-toggle").addEventListener("click", () => {
   settingsSnapshot = { ...settings };
-  workoutScreen.classList.remove("active");
-  settingsScreen.classList.add("active");
+  showScreen(settingsScreen);
+});
+
+document.getElementById("glossary-toggle").addEventListener("click", () => {
+  showScreen(glossaryScreen);
 });
 
 document.getElementById("btn-done").addEventListener("click", () => {
-  closeSettingsScreen();
+  showScreen(workoutScreen);
 });
 
 document.getElementById("btn-cancel").addEventListener("click", () => {
@@ -806,7 +810,11 @@ document.getElementById("btn-cancel").addEventListener("click", () => {
     applySettingsToUI();
     workout.refreshIdleDisplay();
   }
-  closeSettingsScreen();
+  showScreen(workoutScreen);
+});
+
+document.getElementById("btn-glossary-done").addEventListener("click", () => {
+  showScreen(workoutScreen);
 });
 
 /* =========================================================================

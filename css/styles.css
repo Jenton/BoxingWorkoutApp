@@ -54,6 +54,11 @@ body {
   letter-spacing: 0.02em;
 }
 
+.header-icons {
+  display: flex;
+  gap: 10px;
+}
+
 .icon-btn {
   background: var(--bg-elevated);
   border: 1px solid var(--border);

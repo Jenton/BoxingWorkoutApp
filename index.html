@@ -21,7 +21,10 @@
   <!-- ===================== HEADER ===================== -->
   <header class="app-header">
     <div class="brand">🥊 <span>Bag Work</span></div>
-    <button id="settings-toggle" class="icon-btn" aria-label="Settings">⚙️</button>
+    <div class="header-icons">
+      <button id="glossary-toggle" class="icon-btn" aria-label="Defense &amp; Movement Guide">📖</button>
+      <button id="settings-toggle" class="icon-btn" aria-label="Settings">⚙️</button>
+    </div>
   </header>
 
   <!-- ===================== WORKOUT SCREEN ===================== -->
@@ -137,15 +140,23 @@
         <input id="opt-vibration" type="checkbox" checked class="toggle" />
       </div>
 
-      <h2 class="settings-heading">Defense &amp; Movement Guide</h2>
-      <div class="field glossary">
-        <dl id="defense-glossary" class="glossary-list"></dl>
-      </div>
-
     </div>
     <div class="settings-footer">
       <button id="btn-cancel" class="footer-btn footer-btn-cancel">Cancel</button>
       <button id="btn-done" class="footer-btn footer-btn-done">Done</button>
+    </div>
+  </section>
+
+  <!-- ===================== DEFENSE GUIDE SCREEN ===================== -->
+  <section id="glossary-screen" class="screen">
+    <div class="settings-scroll">
+      <h2 class="settings-heading">Defense &amp; Movement Guide</h2>
+      <div class="field glossary">
+        <dl id="defense-glossary" class="glossary-list"></dl>
+      </div>
+    </div>
+    <div class="settings-footer">
+      <button id="btn-glossary-done" class="footer-btn footer-btn-done">Done</button>
     </div>
   </section>
 
