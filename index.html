@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0d0d0f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Bag Work" />
+<title>Bag Work — Boxing Bag Instructor</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icons/icon-192.svg" />
+<link rel="icon" href="icons/icon-192.svg" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="app-header">
+    <div class="brand">🥊 <span>Bag Work</span></div>
+    <button id="settings-toggle" class="icon-btn" aria-label="Settings">⚙️</button>
+  </header>
+
+  <!-- ===================== WORKOUT SCREEN ===================== -->
+  <main id="workout-screen" class="screen active">
+
+    <div class="status-row">
+      <div id="round-counter" class="round-counter">Ready</div>
+      <div id="mode-pill" class="mode-pill">Timed Rounds</div>
+    </div>
+
+    <div class="timer-wrap">
+      <div id="phase-label" class="phase-label">READY</div>
+      <div id="timer-display" class="timer-display">03:00</div>
+    </div>
+
+    <div class="calls-panel">
+      <div class="calls-title">Last calls</div>
+      <ul id="calls-list" class="calls-list">
+        <li class="call-placeholder">Calls will appear here…</li>
+      </ul>
+    </div>
+
+    <div class="controls-row">
+      <button id="btn-start" class="ctrl-btn ctrl-start">Start</button>
+      <button id="btn-pause" class="ctrl-btn ctrl-pause" disabled>Pause</button>
+      <button id="btn-stop" class="ctrl-btn ctrl-stop" disabled>Stop</button>
+    </div>
+  </main>
+
+  <!-- ===================== SETTINGS SCREEN ===================== -->
+  <section id="settings-screen" class="screen">
+    <div class="settings-scroll">
+
+      <h2 class="settings-heading">Session</h2>
+
+      <div class="field">
+        <label for="opt-mode">Session mode</label>
+        <select id="opt-mode">
+          <option value="rounds">Timed Rounds</option>
+          <option value="freestyle">Freestyle</option>
+        </select>
+      </div>
+
+      <div id="rounds-fields" class="field-group">
+        <div class="field field-inline">
+          <label for="opt-round-length">Round length (min:sec)</label>
+          <div class="minsec">
+            <input id="opt-round-min" type="number" min="0" max="59" value="3" inputmode="numeric" />
+            <span>:</span>
+            <input id="opt-round-sec" type="number" min="0" max="59" value="0" inputmode="numeric" />
+          </div>
+        </div>
+        <div class="field field-inline">
+          <label for="opt-rest-length">Rest length (min:sec)</label>
+          <div class="minsec">
+            <input id="opt-rest-min" type="number" min="0" max="59" value="1" inputmode="numeric" />
+            <span>:</span>
+            <input id="opt-rest-sec" type="number" min="0" max="59" value="0" inputmode="numeric" />
+          </div>
+        </div>
+        <div class="field field-inline">
+          <label for="opt-num-rounds">Number of rounds</label>
+          <input id="opt-num-rounds" type="number" min="1" max="30" value="5" inputmode="numeric" />
+        </div>
+      </div>
+
+      <div id="freestyle-fields" class="field-group hidden">
+        <div class="field">
+          <label for="opt-interval">Call interval: <span id="opt-interval-val">4</span>s</label>
+          <input id="opt-interval" type="range" min="2" max="6" step="0.5" value="4" />
+        </div>
+      </div>
+
+      <h2 class="settings-heading">Difficulty</h2>
+      <div class="field">
+        <label for="opt-difficulty">Difficulty level</label>
+        <select id="opt-difficulty">
+          <option value="beginner">Beginner</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="advanced" selected>Advanced</option>
+        </select>
+      </div>
+
+      <div class="field field-toggle">
+        <label for="opt-defense">Defense &amp; movement calls</label>
+        <input id="opt-defense" type="checkbox" checked class="toggle" />
+      </div>
+
+      <h2 class="settings-heading">Voice</h2>
+      <div class="field">
+        <label for="opt-voice">Voice</label>
+        <select id="opt-voice"></select>
+      </div>
+      <div class="field">
+        <label for="opt-rate">Speech rate: <span id="opt-rate-val">1.0</span>x</label>
+        <input id="opt-rate" type="range" min="0.5" max="2" step="0.1" value="1" />
+      </div>
+      <div class="field">
+        <label for="opt-volume">Volume: <span id="opt-volume-val">100</span>%</label>
+        <input id="opt-volume" type="range" min="0" max="1" step="0.05" value="1" />
+      </div>
+      <div class="field">
+        <button id="btn-test-voice" class="secondary-btn">Test voice</button>
+      </div>
+
+      <h2 class="settings-heading">Feedback</h2>
+      <div class="field field-toggle">
+        <label for="opt-sound">Bell / buzzer sound</label>
+        <input id="opt-sound" type="checkbox" checked class="toggle" />
+      </div>
+      <div class="field field-toggle">
+        <label for="opt-vibration">Vibration on round end</label>
+        <input id="opt-vibration" type="checkbox" checked class="toggle" />
+      </div>
+
+      <button id="btn-done" class="primary-btn">Done</button>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
