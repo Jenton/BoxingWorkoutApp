@@ -32,21 +32,37 @@ const DEFENSE_GLOSSARY = [
   ["Circle right", "Same as Circle left, moving to your right instead."]
 ];
 
+// Each combo carries a weight so bread-and-butter combos (1-2, 1-2-3...)
+// get called far more often than specialty ones (6-5-2-1...), the way a
+// real coach actually leans on the staples: 5 = staple, 3 = common,
+// 1 = occasional variety.
 const PUNCH_POOLS = {
   beginner: [
-    "1-2", "1-1", "2-3", "1-3", "3-2", "1-5", "3-6",
-    "1-2-3", "1-1-2", "2-3-2", "1-3-2", "1-2-1"
+    { value: "1-2", weight: 5 }, { value: "1-1", weight: 3 },
+    { value: "2-3", weight: 3 }, { value: "1-3", weight: 3 },
+    { value: "3-2", weight: 3 }, { value: "1-5", weight: 1 },
+    { value: "3-6", weight: 1 }, { value: "1-2-3", weight: 5 },
+    { value: "1-1-2", weight: 3 }, { value: "2-3-2", weight: 3 },
+    { value: "1-3-2", weight: 3 }, { value: "1-2-1", weight: 3 }
   ],
   intermediate: [
-    "1-2-3", "1-1-2", "2-3-2", "1-2-3-2", "1-3-2",
-    "1-2-6", "3-2-3", "1-4-3", "1-2-3-6", "2-3-6",
-    "1-1-2-3", "3-2-3-2", "1-2-1-2", "6-3-2", "1-6-3-2"
+    { value: "1-2-3", weight: 5 }, { value: "1-1-2", weight: 5 },
+    { value: "2-3-2", weight: 5 }, { value: "1-2-3-2", weight: 5 },
+    { value: "1-3-2", weight: 3 }, { value: "1-2-6", weight: 1 },
+    { value: "3-2-3", weight: 3 }, { value: "1-4-3", weight: 1 },
+    { value: "1-2-3-6", weight: 1 }, { value: "2-3-6", weight: 1 },
+    { value: "1-1-2-3", weight: 3 }, { value: "3-2-3-2", weight: 3 },
+    { value: "1-2-1-2", weight: 3 }, { value: "6-3-2", weight: 1 },
+    { value: "1-6-3-2", weight: 1 }
   ],
   advanced: [
-    "1-2-3-2", "1-1-2-3-2", "1-2-3-6-3", "2-3-2-3-2",
-    "1-2-6-3-2", "1-3-2-3-2", "1-2-3-2-3-2", "1-4-3-2",
-    "1-2-5-2", "3-2-3-6-3", "1-1-2-3-6-3", "2-3-2-6-3",
-    "1-2-1-2-3", "6-5-2-1"
+    { value: "1-2-3-2", weight: 5 }, { value: "1-1-2-3-2", weight: 3 },
+    { value: "1-2-3-6-3", weight: 3 }, { value: "2-3-2-3-2", weight: 3 },
+    { value: "1-2-6-3-2", weight: 1 }, { value: "1-3-2-3-2", weight: 3 },
+    { value: "1-2-3-2-3-2", weight: 1 }, { value: "1-4-3-2", weight: 1 },
+    { value: "1-2-5-2", weight: 1 }, { value: "3-2-3-6-3", weight: 1 },
+    { value: "1-1-2-3-6-3", weight: 1 }, { value: "2-3-2-6-3", weight: 1 },
+    { value: "1-2-1-2-3", weight: 3 }, { value: "6-5-2-1", weight: 1 }
   ]
 };
 
@@ -68,17 +84,22 @@ const CHAINED_COMBOS = [
   ["Parry", "1-2-3", "pivot right", "2-3"]
 ];
 
-// Pacing (seconds of rest AFTER a call finishes speaking, before the next
-// one starts) during Timed Rounds, by difficulty.
-const PACE = {
-  beginner: { min: 2.5, max: 3.5 },
-  intermediate: { min: 1.5, max: 2.5 },
-  advanced: { min: 0.8, max: 1.6 }
-};
+// Physical execution time (seconds) — how long it actually takes to throw
+// one punch or perform one defensive movement, by difficulty. Faster
+// difficulties assume a quicker, more fluid pace on the bag. The gap
+// between calls is built from this rather than a flat range, so a 6-punch
+// combo naturally gets more time than "1-2" — a coach paces off what you
+// just asked for, not a stopwatch.
+const PUNCH_THROW_TIME = { beginner: 0.55, intermediate: 0.45, advanced: 0.38 };
+const DEFENSE_MOVE_TIME = 0.7;
 
-// Extra rest (seconds), on top of the normal pace gap, after a standalone
-// defense/movement call — it's quick to say but needs real time to do.
-const DEFENSE_CALL_EXTRA_REST = 0.9;
+// Small extra buffer on top of the estimated execution time, so there's a
+// beat to reset before the next call — plus a touch of natural variation.
+const PACE_BUFFER = {
+  beginner: { min: 0.6, max: 1.0 },
+  intermediate: { min: 0.4, max: 0.8 },
+  advanced: { min: 0.3, max: 0.6 }
+};
 
 // Chance of a standalone defense call vs a punch combo (defense toggle on).
 const DEFENSE_FREQ = { beginner: 0.15, intermediate: 0.3, advanced: 0.2 };
@@ -89,9 +110,57 @@ const CHAIN_FREQ = 0.4;
 // don't count toward this streak.
 const MAX_CONSECUTIVE_DEFENSE = 2;
 
+// Chance of building on the previous combo ("1-2" -> "1-2-3") instead of a
+// fresh unrelated pick, when the pool actually has an extension of it —
+// mirrors a coach layering onto what you just threw.
+const BUILD_FREQ = 0.3;
+
+// Natural short counters to pair with a defensive move dynamically, so
+// "slip left" can flow straight into "2" the way a coach actually calls
+// it — at any difficulty, not just the hand-authored advanced chains.
+const COUNTER_PUNCHES = {
+  beginner: [
+    { value: "2", weight: 5 }, { value: "1-2", weight: 3 }, { value: "2-3", weight: 2 }
+  ],
+  intermediate: [
+    { value: "2-3", weight: 5 }, { value: "1-2", weight: 3 }, { value: "2-3-2", weight: 2 }
+  ],
+  advanced: [
+    { value: "2-3", weight: 4 }, { value: "1-2-3", weight: 4 }, { value: "2-3-2", weight: 3 }
+  ]
+};
+// Chance that a standalone defense call becomes "move + counter" instead of
+// just the move alone, by difficulty.
+const DYNAMIC_COUNTER_FREQ = { beginner: 0.2, intermediate: 0.4, advanced: 0.5 };
+
 const PUNCH_SEGMENT_RE = /^[1-6](-[1-6])*$/;
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function pickWeighted(items) {
+  const total = items.reduce((sum, i) => sum + i.weight, 0);
+  let r = Math.random() * total;
+  for (const item of items) {
+    if (r < item.weight) return item.value;
+    r -= item.weight;
+  }
+  return items[items.length - 1].value;
+}
+
+function comboSegmentsOf(str) { return str.split("-"); }
+
+// True if `candidate` is `base` with one or more punches added on the end
+// — e.g. "1-2-3" extends "1-2". Used to find natural combo-building moves.
+function isExtensionOf(candidate, base) {
+  const c = comboSegmentsOf(candidate);
+  const b = comboSegmentsOf(base);
+  if (c.length <= b.length) return false;
+  return b.every((seg, i) => c[i] === seg);
+}
+
+function getExtensions(base, pool) {
+  return pool.filter((item) => isExtensionOf(item.value, base)).map((item) => item.value);
+}
 
 function makeSegment(text) {
   return { text, isPunch: PUNCH_SEGMENT_RE.test(text.trim()) };
@@ -113,29 +182,92 @@ function chainedCall(parts) {
   };
 }
 
-// `recentKinds` is the kind ("defense"/"punch"/"mixed") of the last few
-// calls, most recent last — used to cap consecutive standalone defense calls.
-function generateCall(difficulty, includeDefense, recentKinds) {
+function defenseWithCounter(difficulty) {
+  const move = pick(DEFENSE_MOVES);
+  const counterPool = COUNTER_PUNCHES[difficulty] || COUNTER_PUNCHES.beginner;
+  return chainedCall([move, pickWeighted(counterPool)]);
+}
+
+// A coach pushes pace and leans harder into pure punch output in a round's
+// final third (the "championship round" push), and is a bit more measured
+// early on. `progress` is 0..1 elapsed/duration through the current work
+// phase, or null outside Timed Rounds (Freestyle stays flat/user-paced).
+function roundPhaseMultipliers(progress) {
+  if (progress == null) return { pace: 1, defense: 1 };
+  if (progress < 1 / 3) return { pace: 1.15, defense: 1 };
+  if (progress < 2 / 3) return { pace: 1, defense: 1 };
+  return { pace: 0.82, defense: 0.75 };
+}
+
+function estimateExecutionSeconds(call, difficulty) {
+  const punchTime = PUNCH_THROW_TIME[difficulty] || PUNCH_THROW_TIME.advanced;
+  return call.segments.reduce(
+    (sum, seg) => sum + (seg.isPunch ? comboSegmentsOf(seg.text).length * punchTime : DEFENSE_MOVE_TIME),
+    0
+  );
+}
+
+// The rest gap after a call finishes speaking, before the next one starts —
+// scaled to how long the call actually takes to physically perform, and to
+// where the round is (a coach paces the final push differently than the
+// opening feel-out).
+function paceGapSeconds(call, difficulty, roundProgress) {
+  const buf = PACE_BUFFER[difficulty] || PACE_BUFFER.advanced;
+  const buffer = buf.min + Math.random() * (buf.max - buf.min);
+  const phase = roundPhaseMultipliers(roundProgress);
+  return (estimateExecutionSeconds(call, difficulty) + buffer) * phase.pace;
+}
+
+// `ctx`: { recentKinds, lastCombo, lastDisplay, roundProgress }
+//  - recentKinds: kind ("defense"/"punch"/"mixed") of the last few calls,
+//    most recent last — caps consecutive standalone defense calls.
+//  - lastCombo: the last plain punch combo called (for combo-building).
+//  - lastDisplay: the exact last call's display text (no-repeat guard).
+//  - roundProgress: 0..1 through the current round, or null in Freestyle.
+function generateCall(difficulty, includeDefense, ctx) {
+  const { recentKinds, lastCombo, lastDisplay, roundProgress } = ctx;
   const punchPool = PUNCH_POOLS[difficulty] || PUNCH_POOLS.advanced;
+  const phase = roundPhaseMultipliers(roundProgress);
 
-  if (!includeDefense) return punchCall(pick(punchPool));
-
-  const blockDefense =
-    recentKinds.length >= MAX_CONSECUTIVE_DEFENSE &&
-    recentKinds.slice(-MAX_CONSECUTIVE_DEFENSE).every((k) => k === "defense");
-
-  if (difficulty === "advanced") {
-    const r = Math.random();
-    if (r < CHAIN_FREQ) return chainedCall(pick(CHAINED_COMBOS));
-    if (!blockDefense && r < CHAIN_FREQ + DEFENSE_FREQ.advanced) {
-      return defenseCall(pick(DEFENSE_MOVES));
+  function freshPunchCall() {
+    if (lastCombo && Math.random() < BUILD_FREQ) {
+      const extensions = getExtensions(lastCombo, punchPool);
+      if (extensions.length) return punchCall(pick(extensions));
     }
-    return punchCall(pick(punchPool));
+    return punchCall(pickWeighted(punchPool));
   }
 
-  const freq = DEFENSE_FREQ[difficulty] ?? 0.2;
-  if (!blockDefense && Math.random() < freq) return defenseCall(pick(DEFENSE_MOVES));
-  return punchCall(pick(punchPool));
+  function standaloneOrCounter() {
+    const dynFreq = DYNAMIC_COUNTER_FREQ[difficulty] ?? 0.2;
+    return Math.random() < dynFreq ? defenseWithCounter(difficulty) : defenseCall(pick(DEFENSE_MOVES));
+  }
+
+  function buildCall() {
+    if (!includeDefense) return freshPunchCall();
+
+    const blockDefense =
+      recentKinds.length >= MAX_CONSECUTIVE_DEFENSE &&
+      recentKinds.slice(-MAX_CONSECUTIVE_DEFENSE).every((k) => k === "defense");
+    const defenseFreq = (DEFENSE_FREQ[difficulty] ?? 0.2) * phase.defense;
+
+    if (difficulty === "advanced") {
+      const chainFreq = CHAIN_FREQ * phase.defense;
+      const r = Math.random();
+      if (r < chainFreq) return chainedCall(pick(CHAINED_COMBOS));
+      if (!blockDefense && r < chainFreq + defenseFreq) return standaloneOrCounter();
+      return freshPunchCall();
+    }
+
+    if (!blockDefense && Math.random() < defenseFreq) return standaloneOrCounter();
+    return freshPunchCall();
+  }
+
+  // A coach never says the exact same thing twice in a row — one retry is
+  // enough to drive that down to near-zero regardless of which branch
+  // above produced the repeat.
+  let call = buildCall();
+  if (lastDisplay && call.display === lastDisplay) call = buildCall();
+  return call;
 }
 
 /* =========================================================================
@@ -440,8 +572,18 @@ const workout = (() => {
   let freestyleElapsed = 0;
   let freestyleStartedAt = 0;
   let recentKinds = []; // last few call kinds, for the consecutive-defense cap
+  let lastCombo = null; // last plain punch combo called, for combo-building
+  let lastDisplay = null; // exact last call's text, for the no-repeat guard
   let callToken = 0; // bumped on pause/stop so stale callbacks are ignored
   let tenSecWarned = false; // has this round's 10-seconds-left cue fired yet
+
+  // 0..1 through the current work phase, or null outside it (Freestyle
+  // keeps a flat, user-set pace rather than a round-phase push).
+  function roundProgress() {
+    if (state !== "work" || phaseDuration <= 0) return null;
+    const elapsed = phaseDuration - (phaseEndAt - performance.now()) / 1000;
+    return Math.min(1, Math.max(0, elapsed / phaseDuration));
+  }
 
   function isActive() {
     return state === "work" || state === "rest" || state === "freestyle";
@@ -464,22 +606,22 @@ const workout = (() => {
   function speakNextCall() {
     if (callTimer) { clearTimeout(callTimer); callTimer = null; }
     const token = callToken;
-    const call = generateCall(settings.difficulty, settings.includeDefense, recentKinds);
+    const call = generateCall(settings.difficulty, settings.includeDefense, {
+      recentKinds, lastCombo, lastDisplay, roundProgress: roundProgress()
+    });
     recentKinds.push(call.kind);
     if (recentKinds.length > MAX_CONSECUTIVE_DEFENSE) recentKinds.shift();
+    if (call.kind === "punch") lastCombo = call.display;
+    lastDisplay = call.display;
     addCallToLog(call.display);
     speakCall(call, () => {
       if (token !== callToken) return; // paused/stopped while speaking
-      let gapSec;
-      if (settings.mode === "freestyle") {
-        gapSec = settings.freestyleInterval;
-      } else {
-        const pace = PACE[settings.difficulty] || PACE.advanced;
-        gapSec = pace.min + Math.random() * (pace.max - pace.min);
-      }
-      // Standalone defense/movement calls are short to say but need real
-      // time to physically perform — give them extra rest either way.
-      if (call.kind === "defense") gapSec += DEFENSE_CALL_EXTRA_REST;
+      const dynamicGap = paceGapSeconds(call, settings.difficulty, roundProgress());
+      // Freestyle's interval is the user's own chosen cadence — respect it
+      // as a floor, but never let it cut a longer combo short.
+      const gapSec = settings.mode === "freestyle"
+        ? Math.max(settings.freestyleInterval, dynamicGap)
+        : dynamicGap;
       callTimer = setTimeout(() => {
         if (token === callToken) speakNextCall();
       }, gapSec * 1000);
@@ -597,6 +739,8 @@ const workout = (() => {
     acquireWakeLock();
     els.callsList.innerHTML = '<li class="call-placeholder">Calls will appear here…</li>';
     recentKinds = [];
+    lastCombo = null;
+    lastDisplay = null;
 
     if (settings.mode === "rounds") {
       startRoundsMode();
@@ -652,6 +796,8 @@ const workout = (() => {
     state = "idle";
     currentRound = 0;
     recentKinds = [];
+    lastCombo = null;
+    lastDisplay = null;
     setPhaseUI("READY");
     els.timerDisplay.textContent = formatTime(settings.mode === "rounds" ? settings.roundLength : 0);
     els.roundCounter.textContent = "Ready";
