@@ -127,6 +127,7 @@ body {
 }
 .phase-label.work { color: var(--green); }
 .phase-label.rest { color: var(--amber); }
+.phase-label.prep { color: var(--amber); }
 .phase-label.done { color: var(--accent); }
 
 .timer-display {
@@ -192,8 +193,10 @@ body {
   flex-shrink: 0;
   display: flex;
   gap: 10px;
-  padding: 12px 20px calc(16px + var(--safe-bottom));
+  padding: 6px 20px;
 }
+.controls-row-start { padding-top: 12px; }
+.controls-row-actions { padding-bottom: calc(16px + var(--safe-bottom)); }
 
 .ctrl-btn {
   flex: 1;
@@ -209,6 +212,12 @@ body {
 .ctrl-btn:active:not(:disabled) { transform: scale(0.97); }
 
 .ctrl-start { background: var(--green); }
+.ctrl-start-delayed {
+  background: transparent;
+  border: 2px solid var(--green);
+  color: var(--green);
+  padding: 18px 0;
+}
 .ctrl-pause { background: var(--amber); color: #1a1400; }
 .ctrl-stop { background: var(--accent); }
 

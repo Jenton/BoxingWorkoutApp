@@ -538,6 +538,7 @@ const els = {
   timerDisplay: document.getElementById("timer-display"),
   callsList: document.getElementById("calls-list"),
   btnStart: document.getElementById("btn-start"),
+  btnStartDelayed: document.getElementById("btn-start-delayed"),
   btnPause: document.getElementById("btn-pause"),
   btnStop: document.getElementById("btn-stop")
 };
@@ -562,7 +563,7 @@ function addCallToLog(text) {
 }
 
 const workout = (() => {
-  let state = "idle"; // idle | work | rest | freestyle | done
+  let state = "idle"; // idle | prep | work | rest | freestyle | paused | done
   let phaseEndAt = 0;
   let phaseDuration = 0;
   let pausedRemaining = null;
@@ -724,17 +725,16 @@ const workout = (() => {
 
   function setControlsForState() {
     const running = state === "work" || state === "rest" || state === "freestyle";
-    els.btnStart.disabled = running;
-    els.btnPause.disabled = state === "idle" || state === "done";
+    els.btnStart.disabled = running || state === "prep";
+    els.btnStartDelayed.disabled = running || state === "prep";
+    els.btnPause.disabled = state === "idle" || state === "done" || state === "prep";
     els.btnPause.textContent = state === "paused" ? "Resume" : "Pause";
     els.btnStop.disabled = state === "idle";
   }
 
   let preParseState = null; // remembers state before pause
 
-  function start() {
-    if (state !== "idle" && state !== "done") return;
-    primeSpeech();
+  function launchWorkout() {
     getAudioCtx();
     acquireWakeLock();
     els.callsList.innerHTML = '<li class="call-placeholder">Calls will appear here…</li>';
@@ -748,6 +748,42 @@ const workout = (() => {
       startFreestyle();
     }
     setControlsForState();
+  }
+
+  function start() {
+    if (state !== "idle" && state !== "done") return;
+    primeSpeech();
+    launchWorkout();
+  }
+
+  // Counts down out loud so gloves can go on before the first call, then
+  // falls straight into the normal start flow.
+  function startDelayed(seconds) {
+    if (state !== "idle" && state !== "done") return;
+    primeSpeech();
+    getAudioCtx();
+    state = "prep";
+    let remaining = seconds;
+    setPhaseUI("GET READY", "prep");
+    els.roundCounter.textContent = "Gloves on — starting soon";
+    els.timerDisplay.textContent = formatTime(remaining);
+    speak(`Starting in ${seconds} seconds. Get your gloves on.`);
+    setControlsForState();
+    tickTimer = setInterval(() => {
+      remaining -= 1;
+      if (remaining > 0) {
+        els.timerDisplay.textContent = formatTime(remaining);
+        if (remaining === 10) {
+          playBell("warning");
+          vibrate(60);
+        }
+        if (remaining <= 3) speak(String(remaining));
+      } else {
+        clearInterval(tickTimer);
+        tickTimer = null;
+        launchWorkout();
+      }
+    }, 1000);
   }
 
   function pause() {
@@ -811,7 +847,7 @@ const workout = (() => {
     els.timerDisplay.textContent = settings.mode === "rounds" ? formatTime(settings.roundLength) : "00:00";
   }
 
-  return { start, pause, resume, togglePause, stop, isActive, refreshIdleDisplay, setControlsForState };
+  return { start, startDelayed, pause, resume, togglePause, stop, isActive, refreshIdleDisplay, setControlsForState };
 })();
 
 /* =========================================================================
@@ -971,6 +1007,10 @@ els.btnStart.addEventListener("click", () => {
   primeSpeech();
   workout.start();
 });
+els.btnStartDelayed.addEventListener("click", () => {
+  primeSpeech();
+  workout.startDelayed(30);
+});
 els.btnPause.addEventListener("click", () => {
   workout.togglePause();
 });
@@ -982,8 +1022,9 @@ els.btnStop.addEventListener("click", () => {
    VOICE CONTROL (Siri Shortcuts)
    A Siri Shortcut can't call app code directly since this is a browser app
    with no native shell, but it can open a URL with a query param. Set up a
-   Shortcut per action ("Open URL" -> e.g. index.html?action=start) and give
-   it a Siri phrase like "start bag work" to drive this hands-free.
+   Shortcut per action ("Open URL" -> e.g. index.html?action=start30) and
+   give it a Siri phrase like "start bag work" to drive this hands-free.
+   Actions: start, start30, pause, resume, stop.
    ========================================================================= */
 
 function handleVoiceActionParam() {
@@ -996,6 +1037,10 @@ function handleVoiceActionParam() {
     case "start":
       primeSpeech();
       workout.start();
+      break;
+    case "start30":
+      primeSpeech();
+      workout.startDelayed(30);
       break;
     case "pause":
       workout.pause();
