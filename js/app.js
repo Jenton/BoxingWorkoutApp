@@ -8,7 +8,7 @@
 
 const DEFENSE_MOVES = [
   "Slip left", "Slip right", "Roll", "Duck", "Pull back",
-  "Pull straight back", "Parry", "Block", "Cover up",
+  "Parry", "Block", "Cover up",
   "Pivot left", "Pivot right", "Step in", "Step out",
   "Circle left", "Circle right"
 ];
@@ -20,7 +20,6 @@ const DEFENSE_GLOSSARY = [
   ["Roll", "Bend at the knees and roll your head and shoulders under an incoming hook, staying low as it passes over you."],
   ["Duck", "Bend your knees and drop your head and upper body straight down to get under a punch, then come back up to stance."],
   ["Pull back", "Shift your weight onto your back leg and lean your upper body out of range, keeping your hands up, then return to stance."],
-  ["Pull straight back", "Same as Pull back — lean straight back out of punching range without moving your feet, then reset."],
   ["Parry", "Use an open glove to give an incoming punch (usually the jab) a quick slap or push to redirect it off target."],
   ["Block", "Keep your forearms and gloves tight against your head and body to absorb punches rather than avoiding them."],
   ["Cover up", "Bring both gloves up tight against your head with elbows in, protecting your head and body together."],
@@ -80,7 +79,7 @@ const CHAINED_COMBOS = [
   ["Slip left", "slip right", "1-2-3"],
   ["Pivot left", "1-2", "step in", "3-2-3"],
   ["Cover up", "step out", "2-3-2-3"],
-  ["Pull straight back", "1-2", "circle right", "1-1-2"],
+  ["Pull back", "1-2", "circle right", "1-1-2"],
   ["Parry", "1-2-3", "pivot right", "2-3"]
 ];
 
