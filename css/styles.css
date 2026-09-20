@@ -166,7 +166,7 @@ body {
   padding: 0;
   overflow-y: auto;
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   gap: 6px;
 }
 

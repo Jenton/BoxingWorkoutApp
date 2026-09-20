@@ -554,11 +554,11 @@ function addCallToLog(text) {
   if (placeholder) placeholder.remove();
   const li = document.createElement("li");
   li.textContent = text;
-  els.callsList.appendChild(li);
+  els.callsList.prepend(li);
   while (els.callsList.children.length > 8) {
-    els.callsList.removeChild(els.callsList.firstChild);
+    els.callsList.removeChild(els.callsList.lastChild);
   }
-  els.callsList.scrollTop = els.callsList.scrollHeight;
+  els.callsList.scrollTop = 0;
 }
 
 const workout = (() => {
@@ -811,7 +811,7 @@ const workout = (() => {
     els.timerDisplay.textContent = settings.mode === "rounds" ? formatTime(settings.roundLength) : "00:00";
   }
 
-  return { start, togglePause, stop, isActive, refreshIdleDisplay, setControlsForState };
+  return { start, pause, resume, togglePause, stop, isActive, refreshIdleDisplay, setControlsForState };
 })();
 
 /* =========================================================================
@@ -979,6 +979,37 @@ els.btnStop.addEventListener("click", () => {
 });
 
 /* =========================================================================
+   VOICE CONTROL (Siri Shortcuts)
+   A Siri Shortcut can't call app code directly since this is a browser app
+   with no native shell, but it can open a URL with a query param. Set up a
+   Shortcut per action ("Open URL" -> e.g. index.html?action=start) and give
+   it a Siri phrase like "start bag work" to drive this hands-free.
+   ========================================================================= */
+
+function handleVoiceActionParam() {
+  const params = new URLSearchParams(window.location.search);
+  const action = params.get("action");
+  if (!action) return;
+  history.replaceState(null, "", window.location.pathname + window.location.hash);
+
+  switch (action) {
+    case "start":
+      primeSpeech();
+      workout.start();
+      break;
+    case "pause":
+      workout.pause();
+      break;
+    case "resume":
+      workout.resume();
+      break;
+    case "stop":
+      workout.stop();
+      break;
+  }
+}
+
+/* =========================================================================
    INIT
    ========================================================================= */
 
@@ -994,6 +1025,7 @@ refreshVoices();
 renderDefenseGlossary();
 workout.refreshIdleDisplay();
 workout.setControlsForState();
+handleVoiceActionParam();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
